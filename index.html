@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
+        crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <h1 class="text-center mt-1">Produkty</h1>
+    <div class="container-fluid pb-3" style="position: relative; min-height: 100px;">
+        <div id="productLoadingOverlay" class="loading-overlay">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+        </div>
+        <div class="row align-items-start" id="products-container"></div>
+    </div>
+    <hr />
+    <h2 class="text-center">Dodaj produkt</h2>
+    <form class="row mb-3 ms-2 me-2 ps-1 pe-1 pb-3" id="product-form" style="position: relative;">
+        <div id="productAddLoadingOverlay" class="loading-overlay">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+        </div>
+        <div class="col-12 col-sm-6">
+            <label for="product-input-brand" class="form-label">Marka</label>
+            <input type="text" id="product-input-brand" class="form-control" required>
+            <label for="product-input-name" class="form-label">Nazwa</label>
+            <input type="text" id="product-input-name" class="form-control" required>
+        </div>
+        <div class="col-12 col-sm-6">
+            <label for="product-input-price" class="form-label">Cena</label>
+            <input type="number" id="product-input-price" class="form-control" min="0">
+            <label for="product-input-liters" class="form-label">Litry</label>
+            <input type="number" id="product-input-liters" class="form-control">
+        </div>
+        
+        <button type="submit" class="btn btn-primary mt-3">Dodaj produkt</button>
+    </form>
+    <style>
+        .loading-overlay {
+            position: absolute;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 25%;
+            z-index: 10000;
+            background-color: black;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 15px;
+        }
+    </style>
+
+    <script type="module">
+
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.18.0/firebase-app.js'
+        import { getFirestore, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/9.18.0/firebase-firestore.js"
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBYo3wHPqtzIXBX77Of9TcyVZS7k9-_PD4",
+            authDomain: "psm-cwiczenie.firebaseapp.com",
+            projectId: "psm-cwiczenie",
+            storageBucket: "psm-cwiczenie.appspot.com",
+            messagingSenderId: "1035449856393",
+            appId: "1:1035449856393:web:d7012ec6f6e8bc54b33158",
+            measurementId: "G-R2EJNC85SH"
+        };
+
+        const SELECTORS = {
+            PRODUCT_LOADING_OVERLAY: '#productLoadingOverlay',
+            PRODUCT_ADD_LOADING_OVERLAY: '#productAddLoadingOverlay',
+            PRODUCTS_CONTAINER: '#products-container',
+            PRODUCT_ADD_INPUT: {
+                BRAND: '#product-input-brand',
+                NAME: '#product-input-name',
+                PRICE: '#product-input-price',
+                LITERS: '#product-input-liters',
+                
+            },
+            PRODUCT_ADD_FORM: '#product-form',
+            PRODUCT_ADD_FEATURE_BUTTON: '#product-input-features-add-btn'
+        }
+
+        const app = initializeApp(firebaseConfig)
+        
+        const firestore = getFirestore(app)
+
+        const CollectionRef = collection(firestore, 'honey1')
+
+        const createElement = ({ tag, className, textContent, customStyle, customAttributes, parent } = {}) => {
+            const el = document.createElement(tag)
+            if (textContent !== undefined) {
+                el.textContent = textContent
+            }
+            if (className !== undefined) {
+                el.className = className
+            }
+            if (customStyle !== undefined) {
+                el.style.cssText = customStyle
+            }
+            if (customAttributes !== undefined) {
+                for (const [k, v] of Object.entries(customAttributes)) {
+                    el.setAttribute(k, v)
+                }
+            }
+            if (parent !== undefined) {
+                parent.appendChild(el)
+            }
+            return el
+        }
+        const showProductLoading = () => {
+            document.querySelector(SELECTORS.PRODUCT_LOADING_OVERLAY).style.display = 'flex'
+        }
+
+        const hideProductLoading = () => {
+            document.querySelector(SELECTORS.PRODUCT_LOADING_OVERLAY).style.display = 'none'
+        }
+
+        const showAddProductLoading = () => {
+            document.querySelector(SELECTORS.PRODUCT_ADD_LOADING_OVERLAY).style.display = 'flex'
+        }
+
+        const hideAddProductLoading = () => {
+            document.querySelector(SELECTORS.PRODUCT_ADD_LOADING_OVERLAY).style.display = 'none'
+        }
+
+        const getProducts = async () => {
+            showProductLoading()
+            const res = await getDocs(CollectionRef)
+            const products = res.docs.map(doc => doc.data())
+            updateProductsList(products)
+            hideProductLoading()
+        }
+
+        const updateProductsList = (products) => {
+            const productsContainer = document.querySelector(SELECTORS.PRODUCTS_CONTAINER)
+            productsContainer.innerHTML = ''
+
+            for (const product of products) {
+
+                const cardBody = createElement({
+                    tag: 'div',
+                    className: 'card-body',
+                    parent: createElement({
+                        tag: 'div',
+                        className: 'card mt-4',
+                        customStyle: 'height: 210px;',
+                        parent: createElement({
+                            tag: 'div',
+                            className: 'col-lg-2 col-md-4 col-sm-12',
+                            parent: productsContainer
+                        })
+                    })
+                })
+
+                createElement({
+                    tag: 'h5',
+                    className: 'card-title',
+                    textContent: `${product.name}, ${product.brand}`,
+                    parent: cardBody
+                })
+
+                let subtitle = product.liters ?? ''
+                if (subtitle) {
+                    subtitle += 'L · '
+                }
+                if (product.price !== undefined) {
+                    subtitle += `${product.price}ZŁ`
+                }
+
+
+                createElement({
+                    tag: 'h6',
+                    className: 'card-subtitle mb2 text-muted',
+                    textContent: subtitle,
+                    parent: cardBody
+                })
+
+            }
+        }
+
+        
+
+        const resetAddProductForm = () => {
+            document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.BRAND).value = ''
+            document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.PRICE).value = ''
+            document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.LITERS).value = ''
+            document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.NAME).value = ''
+            
+        }
+
+        const handleFormSubmit = (e) => {
+            e.preventDefault()
+            showAddProductLoading()
+
+            const newProduct = {
+                brand: document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.BRAND).value,
+                name: document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.NAME).value
+            }
+
+            const price = document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.PRICE).valueAsNumber
+            if (!Number.isNaN(price)) {
+                newProduct.price = price
+            }
+
+            const liters = document.querySelector(SELECTORS.PRODUCT_ADD_INPUT.LITERS).value
+            if (typeof liters === 'string' && liters.length > 0) {
+                newProduct.liters = liters
+            }
+
+            
+
+            console.log('newProduct: ', newProduct)
+
+            addDoc(CollectionRef, newProduct).then(() => {
+                resetAddProductForm()
+                getProducts()
+            }).catch((err) => {
+                console.err(err)
+            }).finally(() => {
+                hideAddProductLoading()
+            })
+        }
+
+        // init
+        document.querySelector(SELECTORS.PRODUCT_ADD_FORM).addEventListener('submit', handleFormSubmit)
+        getProducts()
+
+
+    </script>
+
+</body>
+
+</html>
